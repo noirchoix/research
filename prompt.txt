@@ -1,3 +1,0 @@
-<generate an image visualizing an "ideal" UI landing page for the app> <specifications:> for each UI component included in the "ideal image"; only add such component if it is necessary and sufficient for the features of the app<specifications> <colors>: white, black, beige <task> using the specifications, colors and "best practices for design" with a "research" feel. generate the image reproducible using sveltkit/tailwind.css.>
-
-
