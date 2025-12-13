@@ -1,0 +1,140 @@
+############################################
+# FRONTEND (SvelteKit / Node)
+############################################
+node_modules/
+
+# SvelteKit / Vite build artifacts
+.output/
+.vercel/
+.netlify/
+.wrangler/
+.svelte-kit/
+build/
+
+# Vite timestamp cache
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+
+############################################
+# BACKEND (FastAPI / Python)
+############################################
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python tooling
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# FastAPI / Uvicorn
+*.log
+uvicorn.log
+gunicorn.log
+
+
+############################################
+# DATABASE / RUNTIME FILES
+############################################
+# SQLite / local DBs
+*.sqlite3
+*.db
+
+# Alembic (if added later)
+alembic/versions/*.pyc
+
+# Uploaded documents
+api/uploads/
+uploads/
+
+# Generated outputs
+api/outputs/
+outputs/
+
+# Generated audio (TTS)
+api/audio/
+audio/
+
+# Generated prompt files
+api/prompt_files/
+prompt_files/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+
+############################################
+# ML / LLM / DATA ARTIFACTS
+############################################
+# Prompt pattern CSV exports
+*.generated.csv
+
+# Embedding caches
+*.npy
+*.npz
+*.pkl
+
+# Model caches (if you later add local models)
+models/
+.checkpoints/
+
+
+############################################
+# ENVIRONMENT / SECRETS
+############################################
+.env
+.env.*
+!.env.example
+!.env.test
+
+# API keys / credentials
+*.key
+*.pem
+*.crt
+
+
+############################################
+# OS / EDITORS
+############################################
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains
+.idea/
+
+# Vim / Emacs
+*.swp
+*.swo
+*~
+
+
+############################################
+# MISC
+############################################
+# PDF / DOCX outputs generated at runtime
+*.pdf
+*.docx
+*.tex
+
+# FFmpeg binaries (Windows)
+ffmpeg.exe
+ffprobe.exe
