@@ -375,6 +375,15 @@ async def download_prompt_file(filename: str):
         filename=filename,
     )
 
-@app.get("/api/health")
+@app.get("/")
+def root():
+    return {
+        "status": "ok",
+        "service": "research-api",
+        "docs": "/docs",
+        "openapi": "/openapi.json"
+    }
+
+@app.get("/health")
 def health():
-    return {"ok": True}
+    return {"status": "ok"}
