@@ -31,8 +31,7 @@ from api.prompt_calls.prompt_patterns import (
 from api.prompt_calls.model import TagIn, PromptBuilderRequest, PromptBuilderResponse
 
 
-# tts import
-from api.tts import text_to_audio_eleven, AUDIO_DIR
+
 from api.prompt_calls.prompt import build_prompt
 from api.llms.calls import call_deepseek
 
@@ -268,6 +267,8 @@ async def related_articles(
 # TTS ROUTER
 @app.post("/api/jobs/{job_id}/audio")
 async def job_audio(job_id: int, db: Session = Depends(get_db)):
+    # tts import
+    from api.tts import text_to_audio_eleven, AUDIO_DIR
     """
     Convert a generated job's result_text into a TTS MP3 and return it.
 
@@ -297,6 +298,8 @@ async def job_audio(job_id: int, db: Session = Depends(get_db)):
 
 @app.get("/api/jobs/{job_id}/audio")
 async def job_audio_stream(job_id: int, db: Session = Depends(get_db)):
+    # tts import
+    from api.tts import text_to_audio_eleven, AUDIO_DIR
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
