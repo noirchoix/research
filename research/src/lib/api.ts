@@ -7,12 +7,18 @@ import type {
     PromptBuilderResponse
 } from "./types";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
+if (!API_BASE) {
+    throw new Error("VITE_API_BASE_URL is not defined");
+}
+
 
 export async function apiUpload(file: File): Promise<UploadResponse> {
     const form = new FormData();
     form.append("file", file);
 
-    const res = await fetch("/api/upload", {
+    const res = await fetch(`${API_BASE}/api/upload`, {
         method: "POST",
         body: form
     });
@@ -25,7 +31,7 @@ export async function apiUpload(file: File): Promise<UploadResponse> {
 }
 
 export async function apiGenerate(body: GenerateRequest): Promise<GenerateResponse> {
-    const res = await fetch("/api/generate", {
+    const res = await fetch(`${API_BASE}/api/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
@@ -60,7 +66,7 @@ export async function apiRelated(query: string): Promise<RelatedArticlesResponse
 export async function apiPromptBuilder(
     body: PromptBuilderRequest
 ): Promise<PromptBuilderResponse> {
-    const res = await fetch("/api/prompt-builder", {
+    const res = await fetch(`${API_BASE}/api/prompt-builder`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
