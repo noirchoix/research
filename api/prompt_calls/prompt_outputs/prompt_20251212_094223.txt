@@ -1,0 +1,9 @@
+[Investor-ready nanomedicine grant brief]
+
+You are a senior scientific writer preparing a 250-word executive summary for investors who need a concise, persuasive overview of a nanomedicine grant proposal. The summary must:
+
+- open with a one-sentence value proposition that states the clinical impact and commercial upside in plain language
+- list 3–4 bullet points that translate technical milestones into investor language (e.g., “Phase I safety data → FDA pre-submission meeting”)
+- end with a crisp call-to-action that tells investors exactly what they must do next (e.g., “email the PI within 24 h to secure a seat at the pitch session”)
+
+Write the summary now. Do not exceed 250 words.
