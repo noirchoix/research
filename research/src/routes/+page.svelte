@@ -120,8 +120,14 @@
 
 
             generationResult = res;
-            resultText = res.result_preview;
             downloadUrl = apiDownloadJob(res.job_id);
+
+            if (selectedTask === "math_proof") {
+                const artifactLabel = outputFormat === "tex" ? "LaTeX proof source" : "PDF proof";
+                resultText = `${artifactLabel} generated successfully. Use Download file to save the generated proof.`;
+            } else {
+                resultText = res.result_preview;
+            }
 
             if (documentTitle) {
                 loadRelated(documentTitle);
@@ -367,9 +373,27 @@
         <h2 class="text-lg font-semibold text-black mb-3">Result</h2>
 
         <div class="flex-1 overflow-auto bg-white p-4 rounded-lg border border-[#E6DCCB]">
-          <p class="whitespace-pre-wrap text-sm text-gray-800">
-            {resultText || "Generate a task to see output."}
-          </p>
+          {#if generationResult && selectedTask === "math_proof"}
+            <div class="space-y-3">
+              <p class="text-sm font-semibold text-black">
+                {outputFormat === "tex" ? "LaTeX proof source generated." : "PDF proof generated."}
+              </p>
+              <p class="text-sm text-gray-700">
+                The proof file is ready. Use the download button below or the Download file action on the left.
+              </p>
+              <button
+                type="button"
+                class="inline-flex rounded-lg bg-[#D8C7A1] px-4 py-2 text-sm font-semibold text-black"
+                onclick={downloadFile}
+              >
+                Download {outputFormat === "tex" ? "LaTeX file" : "proof PDF"}
+              </button>
+            </div>
+          {:else}
+            <p class="whitespace-pre-wrap text-sm text-gray-800">
+              {resultText || "Generate a task to see output."}
+            </p>
+          {/if}
         </div>
       </section>
 

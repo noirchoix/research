@@ -155,6 +155,22 @@ def write_latex_math_proof(body: str, prefix: str, title: str) -> Path:
 \usepackage{geometry}
 \geometry{margin=1in}
 
+% Theorem-style environments required by generated mathematical proof documents.
+% amsthm loads the proof environment, but theorem/lemma/etc. must be declared.
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\newtheorem{example}{Example}
+\newtheorem{assumption}{Assumption}
+
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+\newtheorem{note}{Note}
+
 \begin{document}
 \section*{Mathematical Treatment of {{ title }}}
 

@@ -4,18 +4,18 @@ import os
 import re
 import uuid
 import tempfile
+import subprocess
+import shutil
 from typing import List, Optional, Tuple, cast
 from time import monotonic
 from io import BytesIO
 import asyncio
 import logging
+from pathlib import Path
 
 import httpx
-from pydub import AudioSegment
-from pydub.utils import which
 import PyPDF2
 from dotenv import load_dotenv
-from pathlib import Path
 from elevenlabs.client import ElevenLabs
 
 load_dotenv()
@@ -26,22 +26,143 @@ logger = logging.getLogger("tts")
 
 # ==== CONFIG ====
 ELEVEN_API_KEY = os.environ.get("ELEVEN_API_KEY", "")
-VOICE_ID = os.environ.get("ELEVEN_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")  # replace with yours
-MODEL_ID = os.environ.get("ELEVEN_MODEL_ID", "eleven_multilingual_v2")  # replace if needed
-MAX_CHARS = int(os.environ.get("TTS_MAX_CHARS", "2000"))  # bigger than 250 -> fewer calls
-CONCURRENCY = int(os.environ.get("TTS_CONCURRENCY", "4"))  # tune based on CPU/network
-
-# === ffmpeg for pydub ===
-ffmpeg_path = which("ffmpeg") or r"C:\ffmpeg\bin\ffmpeg.exe"
-ffprobe_path = which("ffprobe") or r"C:\ffmpeg\bin\ffprobe.exe"
-os.environ["FFMPEG_BINARY"] = ffmpeg_path
-os.environ["FFPROBE_BINARY"] = ffprobe_path
+VOICE_ID = os.environ.get("ELEVEN_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
+MODEL_ID = os.environ.get("ELEVEN_MODEL_ID", "eleven_multilingual_v2")
+MAX_CHARS = int(os.environ.get("TTS_MAX_CHARS", "2000"))
+CONCURRENCY = int(os.environ.get("TTS_CONCURRENCY", "4"))
 
 BASE_DIR = Path(__file__).parent
 AUDIO_DIR = BASE_DIR / "audio"
 AUDIO_DIR.mkdir(exist_ok=True)
 
 client = ElevenLabs(api_key=ELEVEN_API_KEY)
+
+# ==== FFMPEG AUDIO MERGE UTILITIES ====
+
+def _resolve_ffmpeg() -> Optional[str]:
+    """Return an ffmpeg executable path without importing pydub/audioop."""
+    candidates = [
+        os.environ.get("FFMPEG_BINARY"),
+        shutil.which("ffmpeg"),
+        r"C:\ffmpeg\bin\ffmpeg.exe",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).exists():
+            return str(candidate)
+    return shutil.which("ffmpeg")
+
+
+def _concat_manifest_line(path: Path) -> str:
+    """Build an ffmpeg concat-demuxer-safe file line for Windows/POSIX paths."""
+    normalized = path.resolve().as_posix().replace("'", "'\\''")
+    return f"file '{normalized}'\n"
+
+
+def concat_mp3_bytes_with_ffmpeg(mp3_bytes_list: List[bytes], out_path: str) -> str:
+    """
+    Concatenate ElevenLabs MP3 byte chunks using ffmpeg directly.
+
+    This intentionally avoids pydub because pydub imports audioop/pyaudioop,
+    which breaks on Python 3.13 when audioop was removed from the stdlib.
+    """
+    if not mp3_bytes_list:
+        raise ValueError("No MP3 chunks to merge.")
+
+    output = Path(out_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    # Single chunk: write directly. No ffmpeg required.
+    if len(mp3_bytes_list) == 1:
+        output.write_bytes(mp3_bytes_list[0])
+        return str(output)
+
+    ffmpeg = _resolve_ffmpeg()
+    if not ffmpeg:
+        raise RuntimeError(
+            "Audio merge requires ffmpeg because pydub/audioop is no longer used. "
+            "Install ffmpeg and ensure it is on PATH, or set FFMPEG_BINARY."
+        )
+
+    with tempfile.TemporaryDirectory(prefix="tts_mp3_concat_") as tmp_dir:
+        tmp_root = Path(tmp_dir)
+        manifest = tmp_root / "chunks.txt"
+        manifest_lines: List[str] = []
+
+        for idx, blob in enumerate(mp3_bytes_list):
+            chunk_path = tmp_root / f"chunk_{idx:04d}.mp3"
+            chunk_path.write_bytes(blob)
+            manifest_lines.append(_concat_manifest_line(chunk_path))
+
+        manifest.write_text("".join(manifest_lines), encoding="utf-8")
+
+        cmd = [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel", "error",
+            "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", str(manifest),
+            "-c", "copy",
+            str(output),
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise RuntimeError(
+                "ffmpeg failed to merge TTS audio chunks. "
+                f"stderr: {proc.stderr.strip() or proc.stdout.strip()}"
+            )
+
+    return str(output)
+
+
+def concat_mp3_files_with_ffmpeg(file_paths: List[str], out_path: str) -> str:
+    """Concatenate existing MP3 files using ffmpeg directly."""
+    if not file_paths:
+        raise ValueError("No MP3 files to merge.")
+
+    output = Path(out_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    if len(file_paths) == 1:
+        source = Path(file_paths[0])
+        if source.resolve() != output.resolve():
+            output.write_bytes(source.read_bytes())
+        return str(output)
+
+    ffmpeg = _resolve_ffmpeg()
+    if not ffmpeg:
+        raise RuntimeError(
+            "Audio merge requires ffmpeg because pydub/audioop is no longer used. "
+            "Install ffmpeg and ensure it is on PATH, or set FFMPEG_BINARY."
+        )
+
+    with tempfile.TemporaryDirectory(prefix="tts_file_concat_") as tmp_dir:
+        manifest = Path(tmp_dir) / "chunks.txt"
+        manifest.write_text(
+            "".join(_concat_manifest_line(Path(p)) for p in file_paths),
+            encoding="utf-8",
+        )
+        cmd = [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel", "error",
+            "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", str(manifest),
+            "-c", "copy",
+            str(output),
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise RuntimeError(
+                "ffmpeg failed to merge page audio files. "
+                f"stderr: {proc.stderr.strip() or proc.stdout.strip()}"
+            )
+
+    return str(output)
+
 
 # ==== TEXT UTILITIES (all O(n)) ====
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
@@ -50,9 +171,9 @@ _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 def cleanup_text(raw: str) -> str:
     if not raw:
         return ""
-    txt = re.sub(r"-\s*\n\s*", "", raw)   # join hyphenated line breaks
-    txt = re.sub(r"\s*\n\s*", " ", txt)   # newlines -> space
-    txt = re.sub(r"\s{2,}", " ", txt)     # collapse whitespace
+    txt = re.sub(r"-\s*\n\s*", "", raw)
+    txt = re.sub(r"\s*\n\s*", " ", txt)
+    txt = re.sub(r"\s{2,}", " ", txt)
     return txt.strip()
 
 
@@ -76,7 +197,6 @@ def pack_sentences(sents: List[str], limit: int) -> List[str]:
         else:
             chunks.append(cur)
             cur = s
-        # If a single sentence is longer than limit, fall back to word-wrap split
         if len(cur) > limit:
             words = cur.split()
             cur = ""
@@ -97,7 +217,6 @@ def chunk_text_for_tts(text: str, limit: int = MAX_CHARS) -> List[str]:
     sents = sentences(text)
     if not sents:
         return []
-    # If there’s no punctuation, pack_sentences still handles long runs via word-wrap fallback
     return pack_sentences(sents, limit)
 
 
@@ -119,50 +238,30 @@ async def tts_request(text: str) -> bytes:
         raise RuntimeError("Missing ELEVEN_API_KEY")
 
     def _call() -> bytes:
-        # Raw response so we can access headers if needed
-        # NOTE: pass voice settings via the SDK model if needed; omit untyped dict to satisfy the
-        # typed client signature (VoiceSettings | None).
         with client.text_to_speech.with_raw_response.convert(
             text=text,
             voice_id=VOICE_ID,
             model_id=MODEL_ID,
         ) as response:
-            # Example: character usage if you want to log/monitor:
             char_cost = response.headers.get("x-character-count")
             logger.debug("ElevenLabs char cost: %s", char_cost)
             data = response.data
-            # If the SDK returns raw bytes, just return them; if it returns an iterator of byte chunks,
-            # join them into a single bytes object so the function signature is respected.
             if isinstance(data, (bytes, bytearray)):
                 return bytes(data)
             try:
                 return b"".join(data)
             except TypeError:
-                # Fallback: iterate and accumulate into a BytesIO buffer
                 buf = BytesIO()
                 for chunk in data:
                     buf.write(chunk)
                 return buf.getvalue()
 
-    # Run the blocking ElevenLabs client call in a thread to keep async API
     return await asyncio.to_thread(_call)
-
-# from elevenlabs.client import ElevenLabs
-# client = ElevenLabs(api_key="your_api_key")
-# # Get raw response with headers
-# response = client.text_to_speech.with_raw_response.convert(
-#     text="Hello, world!",
-#     voice_id="voice_id"
-# )
-# # Access character cost from headers
-# char_cost = response.headers.get("x-character-count")
-# audio_data = response.data
-    
 
 
 async def text_to_audio_eleven(text: str, out_path: Optional[str] = None) -> str:
     """
-    Chunk text (smart), TTS concurrently, concat once, write MP3.
+    Chunk text, generate MP3 chunks concurrently, and merge using ffmpeg.
     Returns the output file path.
     """
     chunks = chunk_text_for_tts(text, limit=MAX_CHARS)
@@ -176,52 +275,42 @@ async def text_to_audio_eleven(text: str, out_path: Optional[str] = None) -> str
     async def _task(i: int, t: str):
         async with sem:
             try:
-                audio = await tts_request(t)  # <-- no client arg now
+                audio = await tts_request(t)
                 logger.debug("eleven: chunk%d ok bytes=%d", i, len(audio))
                 return i, audio
             except Exception as e:
                 logger.error("eleven: chunk%d failed %s", i, e)
                 raise
 
-    # No httpx client needed anymore
     tasks = [asyncio.create_task(_task(i, t)) for i, t in enumerate(chunks)]
     results = await asyncio.gather(*tasks)
 
-    # restore order by index
     results.sort(key=lambda x: x[0])
     mp3_bytes_list = [b for _, b in results]
-
-    # concat once with pydub – still using BytesIO blobs
-    combined = AudioSegment.empty()
-    for blob in mp3_bytes_list:
-        combined += AudioSegment.from_file(BytesIO(blob), format="mp3")
 
     if not out_path:
         filename = f"{uuid.uuid4().hex}.mp3"
         out_path = str(AUDIO_DIR / filename)
 
-    combined.export(out_path, format="mp3")
-    print(f"Final audio => {out_path}")
-    return out_path
+    final_path = concat_mp3_bytes_with_ffmpeg(mp3_bytes_list, out_path)
+    print(f"Final audio => {final_path}")
+    return final_path
 
 
-# Optional: PDF → Audio utility (if you still want it)
+# Optional: PDF → Audio utility
 async def pdf_to_audio_file(pdf_bytes: bytes, merge: bool = True) -> dict:
     """
     Take a PDF as bytes, extract text per page, run TTS, return dict with
     'mode' and file URLs (relative paths).
-    This is logic-only; you can wrap it in a FastAPI endpoint in main.py.
     """
     t0 = monotonic()
     req_id = uuid.uuid4().hex[:8]
     logger.info("pdf-to-audio[%s]: starting", req_id)
 
-    # Persist upload to a temp file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         pdf_path = tmp.name
         tmp.write(pdf_bytes)
 
-    # Read & extract text
     try:
         reader = PyPDF2.PdfReader(pdf_path)
         pages: List[Tuple[int, str]] = []
@@ -241,10 +330,9 @@ async def pdf_to_audio_file(pdf_bytes: bytes, merge: bool = True) -> dict:
 
     base_id = uuid.uuid4().hex
     file_paths: List[str] = []
-    audio_segments: List[AudioSegment] = []
 
     async def render_one(idx: int, text: str) -> Tuple[int, str]:
-        out_filename = f"{base_id}_page{idx+1}.mp3"
+        out_filename = f"{base_id}_page{idx + 1}.mp3"
         out_full_path = AUDIO_DIR / out_filename
         ts = monotonic()
         logger.info("pdf-to-audio[%s]: TTS start page=%d", req_id, idx + 1)
@@ -273,30 +361,29 @@ async def pdf_to_audio_file(pdf_bytes: bytes, merge: bool = True) -> dict:
             ok_results.append(cast(Tuple[int, str], r))
 
     if not ok_results:
-        return {
-            "error": "TTS failed for all pages. Check server logs for details."
-        }
+        return {"error": "TTS failed for all pages. Check server logs for details."}
 
     ok_results.sort(key=lambda x: x[0])
 
     for _, out_path in ok_results:
         file_paths.append(out_path)
-        try:
-            audio_segments.append(AudioSegment.from_file(out_path, format="mp3"))
-        except Exception as e:
-            logger.exception("pdf-to-audio[%s]: failed to read MP3", req_id)
 
-    if merge and audio_segments:
+    if merge and file_paths:
         t_merge = monotonic()
-        merged = audio_segments[0]
-        for seg in audio_segments[1:]:
-            merged += seg
         merged_name = f"{base_id}_merged.mp3"
         merged_path = AUDIO_DIR / merged_name
-        merged.export(merged_path, format="mp3")
+        try:
+            concat_mp3_files_with_ffmpeg(file_paths, str(merged_path))
+        except Exception as e:
+            logger.exception("pdf-to-audio[%s]: merge failed", req_id)
+            return {
+                "mode": "split",
+                "files": file_paths,
+                "warning": f"Page audio generated, but merge failed: {e}",
+            }
         logger.info(
             "pdf-to-audio[%s]: merged parts=%d ms=%d -> %s",
-            req_id, len(audio_segments), int((monotonic() - t_merge) * 1000), merged_path
+            req_id, len(file_paths), int((monotonic() - t_merge) * 1000), merged_path
         )
         logger.info(
             "pdf-to-audio[%s]: DONE mode=merged total_ms=%d",

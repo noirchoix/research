@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { apiPromptBuilder } from "$lib/api";
+  import { apiPromptBuilder, apiUrl } from "$lib/api";
   import type { PromptBuilderRequest, PromptBuilderResponse, TagIn } from "$lib/types";
 
   type ArtifactKey = "prompt" | "spec" | "rubric" | "suite" | "failures";
@@ -20,12 +20,12 @@
 
   const presets: { label: string; tags: TagIn[]; patterns: string[] }[] = [
     {
-      label: "Production code review",
+      label: "Code review",
       patterns: ["Template Pattern", "Chain-of-Thought", "Fact Check List"],
       tags: [
         { name: "objective", value: "Review a software repository for correctness, security, maintainability, release readiness, and exact patch guidance." },
         { name: "audience", value: "Senior developer or technical founder who needs actionable implementation feedback." },
-        { name: "output", value: "A structured review with blockers, warnings, file-level fixes, and a final patch checklist." },
+        { name: "output", value: "Structured review with blockers, warnings, file-level fixes, and a final patch checklist." },
         { name: "constraints", value: "Do not invent files or routes. Identify uncertainty. Prioritize production-breaking issues first." }
       ]
     },
@@ -34,7 +34,7 @@
       patterns: ["Template Pattern", "Fact Check List", "Alternative Approaches"],
       tags: [
         { name: "objective", value: "Synthesize research material into a grounded, citation-aware technical brief." },
-        { name: "audience", value: "Technical reader who needs a concise but evidence-based explanation." },
+        { name: "audience", value: "Technical reader who needs concise but evidence-based explanation." },
         { name: "output", value: "Executive summary, evidence map, uncertainty notes, and next research questions." },
         { name: "constraints", value: "Separate facts from inference. Do not overstate source support." }
       ]
@@ -148,8 +148,7 @@
 
   function downloadPrompt() {
     if (!result?.download_url) return;
-    const url = result.download_url.startsWith("/") ? result.download_url : `/${result.download_url}`;
-    window.open(url, "_blank");
+    window.open(apiUrl(result.download_url), "_blank");
   }
 </script>
 
@@ -157,115 +156,180 @@
   <title>Prompt Builder · Research Assistant</title>
 </svelte:head>
 
-<div class="prompt-shell">
-  <header class="hero">
+<div class="min-h-screen bg-white px-6 py-6 text-black">
+  <header class="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
     <div>
-      <p class="eyebrow">Prompt systems studio</p>
-      <h1>Upgrade rough ideas into production prompts with evaluation artifacts.</h1>
-      <p class="subhead">The rest of the research app stays unchanged. This workspace focuses only on prompt generation, specs, rubrics, regression tests, and failure analysis.</p>
+      <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Prompt Builder</p>
+      <h1 class="text-2xl font-bold tracking-tight text-black">Build production prompts and evaluation artifacts</h1>
+      <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+        Add the prompt goal, select the useful patterns, then generate a copy-ready prompt with a spec, rubric, test suite and failure notes.
+      </p>
     </div>
-    <button type="button" class="primary" onclick={handleGenerate} disabled={isGenerating}>
-      {isGenerating ? "Building…" : "Build prompt system"}
+
+    <button
+      type="button"
+      class="rounded-lg bg-[#D8C7A1] px-5 py-2 text-sm font-semibold text-black disabled:opacity-50"
+      onclick={handleGenerate}
+      disabled={isGenerating}
+    >
+      {isGenerating ? "Generating…" : "Generate prompt"}
     </button>
   </header>
 
   {#if errorMessage}
-    <p class="error-card">{errorMessage}</p>
+    <p class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>
   {/if}
 
-  <main class="studio-grid">
-    <section class="left-stack">
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Starting point</h2>
-          <span>optional</span>
+  <main class="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+    <section class="space-y-5">
+      <section class="rounded-xl border border-[#E6DCCB] bg-[#F7F3EB] p-5">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <h2 class="text-sm font-semibold text-black">Presets</h2>
+          <span class="text-xs text-gray-500">optional</span>
         </div>
-        <div class="preset-row">
+        <div class="flex flex-wrap gap-2">
           {#each presets as preset, index}
-            <button type="button" onclick={() => applyPreset(index)}>{preset.label}</button>
+            <button
+              type="button"
+              class="rounded-full border border-[#E6DCCB] bg-white px-3 py-2 text-xs font-medium text-black hover:bg-[#EEE5D5]"
+              onclick={() => applyPreset(index)}
+            >
+              {preset.label}
+            </button>
           {/each}
         </div>
-      </div>
+      </section>
 
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Prompt patterns</h2>
-          <span>{selectedPatternNames.length} selected</span>
+      <section class="rounded-xl border border-[#E6DCCB] bg-white p-5">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <h2 class="text-sm font-semibold text-black">Prompt patterns</h2>
+          <span class="text-xs text-gray-500">{selectedPatternNames.length} selected</span>
         </div>
-        <div class="pattern-grid">
+        <div class="grid grid-cols-2 gap-2">
           {#each ALL_PATTERNS as p}
             <button
               type="button"
               class:selected={isPatternSelected(p.name)}
+              class="pattern-card rounded-lg border border-[#E6DCCB] bg-[#FAF8F3] px-3 py-2 text-left hover:bg-[#F1E8D7]"
               onclick={() => togglePattern(p.name)}
             >
-              <strong>{p.short}</strong>
-              <span>{p.group}</span>
+              <span class="block text-xs font-semibold text-black">{p.short}</span>
+              <span class="block text-[11px] text-gray-500">{p.group}</span>
             </button>
           {/each}
         </div>
-      </div>
+      </section>
 
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Context fields</h2>
-          <button type="button" class="ghost" onclick={addTagRow}>Add field</button>
+      <section class="rounded-xl border border-[#E6DCCB] bg-white p-5">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <h2 class="text-sm font-semibold text-black">Context fields</h2>
+          <button
+            type="button"
+            class="rounded-full border border-[#E6DCCB] bg-[#F7F3EB] px-3 py-1.5 text-xs font-medium text-black"
+            onclick={addTagRow}
+          >
+            Add field
+          </button>
         </div>
-        <div class="tag-list">
+
+        <div class="space-y-3">
           {#each tags as tag, i}
-            <div class="tag-row">
-              <input aria-label="Context field name" type="text" placeholder="field" bind:value={tag.name} />
-              <textarea aria-label="Context field value" rows="3" placeholder="Value / requirement / example" bind:value={tag.value}></textarea>
-              <button type="button" class="remove" onclick={() => removeTagRow(i)}>×</button>
+            <div class="grid gap-2 rounded-lg border border-[#EEE5D5] bg-[#FBFAF7] p-3">
+              <div class="flex gap-2">
+                <input
+                  aria-label="Context field name"
+                  class="w-36 rounded-lg border border-[#E6DCCB] bg-white px-3 py-2 text-sm outline-none focus:border-[#D8C7A1]"
+                  type="text"
+                  placeholder="field"
+                  bind:value={tag.name}
+                />
+                <button
+                  type="button"
+                  class="ml-auto h-9 w-9 rounded-lg bg-[#F1E8D7] text-sm font-semibold text-[#7A4A22] disabled:opacity-40"
+                  onclick={() => removeTagRow(i)}
+                  disabled={tags.length === 1}
+                  aria-label="Remove context field"
+                >
+                  ×
+                </button>
+              </div>
+              <textarea
+                aria-label="Context field value"
+                class="min-h-20 resize-y rounded-lg border border-[#E6DCCB] bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-[#D8C7A1]"
+                rows="3"
+                placeholder="Value, requirement, rule or example"
+                bind:value={tag.value}
+              ></textarea>
             </div>
           {/each}
         </div>
-      </div>
+      </section>
     </section>
 
-    <section class="output-panel">
+    <section class="min-h-[620px] rounded-xl border border-[#E6DCCB] bg-white p-5">
       {#if result}
-        <div class="result-top">
+        <div class="mb-4 flex items-start justify-between gap-4">
           <div>
-            <p class="eyebrow">Generated system</p>
-            <h2>{result.accepted ? "Production-ready draft" : "Needs revision"}</h2>
+            <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Generated artifacts</p>
+            <h2 class="text-lg font-semibold text-black">{result.accepted ? "Ready for review" : "Needs revision"}</h2>
           </div>
-          <div class="score-pill">{(result.score * 100).toFixed(0)}%</div>
+          <span class="rounded-full bg-[#F7F3EB] px-3 py-1.5 text-xs font-semibold text-black">
+            {(result.score * 100).toFixed(0)}%
+          </span>
         </div>
 
-        <div class="artifact-tabs" role="tablist" aria-label="Prompt artifacts">
-          <button class:active={activeArtifact === "prompt"} onclick={() => (activeArtifact = "prompt")}>Prompt</button>
-          <button class:active={activeArtifact === "spec"} onclick={() => (activeArtifact = "spec")}>Spec</button>
-          <button class:active={activeArtifact === "rubric"} onclick={() => (activeArtifact = "rubric")}>Rubric</button>
-          <button class:active={activeArtifact === "suite"} onclick={() => (activeArtifact = "suite")}>Tests</button>
-          <button class:active={activeArtifact === "failures"} onclick={() => (activeArtifact = "failures")}>Failures</button>
+        <div class="mb-4 flex flex-wrap gap-2" role="tablist" aria-label="Prompt artifacts">
+          <button class:active={activeArtifact === "prompt"} type="button" class="artifact-tab" onclick={() => (activeArtifact = "prompt")}>Prompt</button>
+          <button class:active={activeArtifact === "spec"} type="button" class="artifact-tab" onclick={() => (activeArtifact = "spec")}>Spec</button>
+          <button class:active={activeArtifact === "rubric"} type="button" class="artifact-tab" onclick={() => (activeArtifact = "rubric")}>Rubric</button>
+          <button class:active={activeArtifact === "suite"} type="button" class="artifact-tab" onclick={() => (activeArtifact = "suite")}>Tests</button>
+          <button class:active={activeArtifact === "failures"} type="button" class="artifact-tab" onclick={() => (activeArtifact = "failures")}>Failures</button>
         </div>
 
-        <pre>{artifactText(activeArtifact)}</pre>
+        <pre class="min-h-[360px] max-h-[58vh] overflow-auto whitespace-pre-wrap rounded-xl bg-[#111] p-4 text-xs leading-6 text-[#F7F3EB]">{artifactText(activeArtifact)}</pre>
 
-        <div class="action-row">
-          <button type="button" onclick={() => copyArtifact(activeArtifact)}>{copied === activeArtifact ? "Copied" : "Copy current artifact"}</button>
-          <button type="button" onclick={downloadPrompt} disabled={!result.download_url}>Download spec</button>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="rounded-lg bg-[#D8C7A1] px-4 py-2 text-sm font-semibold text-black"
+            onclick={() => copyArtifact(activeArtifact)}
+          >
+            {copied === activeArtifact ? "Copied" : "Copy current"}
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border border-[#E6DCCB] bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
+            onclick={downloadPrompt}
+            disabled={!result.download_url}
+          >
+            Download spec
+          </button>
         </div>
 
         {#if result.recommendations.length}
-          <div class="notes">
-            <h3>Production notes</h3>
-            {#each result.recommendations as item}
-              <p>{item}</p>
-            {/each}
+          <div class="mt-5 border-t border-[#E6DCCB] pt-4">
+            <h3 class="mb-2 text-sm font-semibold text-black">Notes</h3>
+            <div class="space-y-2">
+              {#each result.recommendations as item}
+                <p class="text-sm leading-6 text-gray-600">{item}</p>
+              {/each}
+            </div>
           </div>
         {/if}
       {:else}
-        <div class="empty-state">
-          <svg viewBox="0 0 420 260" aria-hidden="true">
-            <rect x="44" y="38" width="332" height="184" rx="26" />
-            <path d="M92 92h132M92 122h214M92 152h168" />
-            <circle cx="310" cy="168" r="32" />
-            <path d="M296 168l10 10 21-24" />
-          </svg>
-          <h2>Build a prompt, not just a prompt string.</h2>
-          <p>Output will include the production prompt, PROMPT_SPEC.md, scoring rubric, regression suite, and failure analysis.</p>
+        <div class="flex min-h-[520px] flex-col items-center justify-center text-center">
+          <div class="mb-4 rounded-2xl border border-[#E6DCCB] bg-[#F7F3EB] p-5">
+            <svg class="h-24 w-32" viewBox="0 0 240 160" aria-hidden="true">
+              <rect x="34" y="30" width="172" height="100" rx="18" fill="white" stroke="#D8C7A1" />
+              <path d="M66 64h78M66 84h108M66 104h82" fill="none" stroke="#111" stroke-width="5" stroke-linecap="round" />
+              <circle cx="174" cy="104" r="18" fill="#D8C7A1" stroke="#111" stroke-width="4" />
+              <path d="M166 104l6 6 13-16" fill="none" stroke="#111" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-black">No prompt generated yet</h2>
+          <p class="mt-2 max-w-md text-sm leading-6 text-gray-600">
+            Use the fields on the left to generate a prompt, prompt spec, scoring rubric, test suite and failure analysis.
+          </p>
         </div>
       {/if}
     </section>
@@ -273,323 +337,24 @@
 </div>
 
 <style>
-  :global(body) {
-    margin: 0;
-    background: #fbf7ef;
-    color: #1f1a16;
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  .pattern-card.selected {
+    background: #D8C7A1;
+    border-color: #D8C7A1;
   }
 
-  .prompt-shell {
-    min-height: calc(100vh - 56px);
-    padding: 30px;
-    background:
-      radial-gradient(circle at top left, rgba(219, 120, 83, .17), transparent 32%),
-      linear-gradient(135deg, #fffaf2 0%, #f6efe3 48%, #fdfbf7 100%);
-  }
-
-  .hero {
-    display: flex;
-    justify-content: space-between;
-    gap: 24px;
-    align-items: flex-start;
-    margin-bottom: 20px;
-  }
-
-  .eyebrow {
-    margin: 0 0 8px;
-    font-size: 11px;
-    letter-spacing: .15em;
-    text-transform: uppercase;
-    color: #ad5938;
-    font-weight: 700;
-  }
-
-  h1 {
-    margin: 0;
-    max-width: 900px;
-    font-size: clamp(34px, 5vw, 64px);
-    line-height: .92;
-    letter-spacing: -.07em;
-    font-weight: 760;
-  }
-
-  .subhead {
-    max-width: 740px;
-    color: #6c625a;
-    font-size: 14px;
-    line-height: 1.55;
-  }
-
-  button {
-    border: 0;
+  .artifact-tab {
+    border: 1px solid #E6DCCB;
+    background: #F7F3EB;
+    color: #111;
     border-radius: 999px;
-    padding: 9px 13px;
-    cursor: pointer;
-    font: inherit;
+    padding: 0.45rem 0.8rem;
+    font-size: 0.75rem;
+    font-weight: 600;
   }
 
-  button:disabled {
-    opacity: .5;
-    cursor: not-allowed;
-  }
-
-  .primary {
-    background: #1f1a16;
-    color: #fffaf2;
-    min-width: 170px;
-  }
-
-  .ghost {
-    background: #fffaf2;
-    border: 1px solid #ead8c4;
-    color: #1f1a16;
-    font-size: 12px;
-  }
-
-  .error-card {
-    background: #fff1ec;
-    border: 1px solid #efb8a4;
-    color: #8e341f;
-    border-radius: 18px;
-    padding: 12px 14px;
-  }
-
-  .studio-grid {
-    display: grid;
-    grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
-    gap: 18px;
-    align-items: start;
-  }
-
-  .left-stack {
-    display: grid;
-    gap: 14px;
-  }
-
-  .panel, .output-panel {
-    background: rgba(255, 252, 246, .86);
-    border: 1px solid #ead8c4;
-    box-shadow: 0 30px 80px rgba(72, 48, 24, .07);
-    border-radius: 26px;
-    padding: 18px;
-  }
-
-  .panel-head, .result-top, .action-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: center;
-  }
-
-  .panel-head h2, .result-top h2, .notes h3 {
-    margin: 0;
-    font-size: 16px;
-    letter-spacing: -.025em;
-  }
-
-  .panel-head span {
-    font-size: 12px;
-    color: #8c7e72;
-  }
-
-  .preset-row, .pattern-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .preset-row button {
-    background: #1f1a16;
-    color: #fffaf2;
-    font-size: 12px;
-  }
-
-  .pattern-grid button {
-    min-width: 112px;
-    text-align: left;
-    background: #fffaf2;
-    color: #1f1a16;
-    border: 1px solid #ead8c4;
-    border-radius: 16px;
-    padding: 11px;
-  }
-
-  .pattern-grid button.selected {
-    background: #bd6140;
-    border-color: #bd6140;
-    color: #fffaf2;
-  }
-
-  .pattern-grid strong, .pattern-grid span {
-    display: block;
-  }
-
-  .pattern-grid strong {
-    font-size: 12px;
-  }
-
-  .pattern-grid span {
-    margin-top: 4px;
-    font-size: 11px;
-    opacity: .75;
-  }
-
-  .tag-list {
-    display: grid;
-    gap: 10px;
-    max-height: 48vh;
-    overflow: auto;
-    padding-right: 3px;
-  }
-
-  .tag-row {
-    display: grid;
-    grid-template-columns: 100px 1fr 28px;
-    gap: 8px;
-    align-items: start;
-  }
-
-  input, textarea {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid #ead8c4;
-    background: #fffdf9;
-    border-radius: 14px;
-    padding: 10px 11px;
-    font: inherit;
-    font-size: 12px;
-    color: #1f1a16;
-  }
-
-  textarea {
-    resize: vertical;
-    line-height: 1.45;
-  }
-
-  .remove {
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    background: #f4e7d9;
-    color: #7b3b27;
-  }
-
-  .output-panel {
-    min-height: 620px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  .score-pill {
-    width: 64px;
-    height: 64px;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    background: #1f1a16;
-    color: #fffaf2;
-    font-weight: 760;
-  }
-
-  .artifact-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .artifact-tabs button {
-    background: #fffaf2;
-    border: 1px solid #ead8c4;
-    color: #5c5148;
-    font-size: 12px;
-  }
-
-  .artifact-tabs button.active {
-    background: #1f1a16;
-    color: #fffaf2;
-    border-color: #1f1a16;
-  }
-
-  pre {
-    flex: 1;
-    min-height: 360px;
-    max-height: 58vh;
-    overflow: auto;
-    margin: 0;
-    white-space: pre-wrap;
-    background: #181310;
-    color: #fff8ec;
-    border-radius: 20px;
-    padding: 16px;
-    font-size: 12px;
-    line-height: 1.55;
-  }
-
-  .action-row button {
-    background: #fffaf2;
-    border: 1px solid #ead8c4;
-    color: #1f1a16;
-    font-size: 12px;
-  }
-
-  .notes {
-    border-top: 1px solid #ead8c4;
-    padding-top: 12px;
-  }
-
-  .notes p {
-    margin: 7px 0 0;
-    font-size: 12px;
-    color: #6c625a;
-    line-height: 1.45;
-  }
-
-  .empty-state {
-    margin: auto;
-    text-align: center;
-    max-width: 560px;
-  }
-
-  .empty-state svg {
-    width: min(420px, 95%);
-  }
-
-  .empty-state rect {
-    fill: #fffaf2;
-    stroke: #ead8c4;
-  }
-
-  .empty-state path {
-    fill: none;
-    stroke: #1f1a16;
-    stroke-width: 5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  .empty-state circle {
-    fill: #e8a07c;
-    stroke: #1f1a16;
-    stroke-width: 4;
-  }
-
-  .empty-state h2 {
-    margin: 8px 0;
-    font-size: 24px;
-    letter-spacing: -.04em;
-  }
-
-  .empty-state p {
-    color: #6c625a;
-    line-height: 1.5;
-  }
-
-  @media (max-width: 1050px) {
-    .hero, .studio-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-    }
+  .artifact-tab.active {
+    background: #111;
+    border-color: #111;
+    color: #F7F3EB;
   }
 </style>

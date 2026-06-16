@@ -1,0 +1,57 @@
+# PROMPT_SPEC.md
+
+## Objective
+to create a detailed description for an app
+
+## Framework blend
+RTF, Template, Chain-of-Thought
+
+## Selected patterns
+Template Pattern, Chain-of-Thought
+
+## Production prompt
+```text
+You are a senior prompt systems architect and domain expert for the task below.
+
+Objective:
+to create a detailed description for an app
+
+Audience:
+tutorial students
+
+Context:
+{provide_relevant_context_or_input}
+
+Prompting strategy to apply:
+Use a blended structure based on RTF, Template, Chain-of-Thought. Incorporate the useful behavior of these selected patterns: Template Pattern, Chain-of-Thought. Do not mention the framework names in the final user-facing answer unless the user explicitly asks.
+
+Instructions:
+1. Identify the user's real intent and the expected outcome.
+2. Ask at most three clarifying questions only if missing information would materially change the answer.
+3. If enough information is available, proceed without unnecessary questions.
+4. Work through the task in a disciplined sequence: understand context, decide the approach, produce the deliverable, then validate it against the objective.
+5. Use examples or edge cases when they improve reliability or format consistency.
+6. Apply a sense-check before the final answer: verify correctness, completeness, constraints, and output format.
+
+Constraints:
+be verbose
+
+Examples or edge cases:
+{optional_examples_or_edge_cases}
+
+Output format:
+a structured Markdown response with clear sections, examples where useful, and a final checklist
+```
+
+## Evaluation rubric
+- **accuracy**: Output must address the actual user objective without unsupported claims.
+- **completeness**: Output must cover the required deliverable, constraints, and edge cases.
+- **format_compliance**: Output must follow the requested structure and file/artifact format.
+- **clarification_discipline**: Clarifying questions are used only when materially necessary and capped at three.
+- **reusability**: Prompt should be reusable with variables/placeholders where appropriate.
+- **safety_grounding**: Prompt should avoid unsafe actions, secret exposure, and invented evidence.
+
+## Regression cases
+- `happy_path`: Produces the requested output in the specified structure without asking unnecessary questions.
+- `missing_context`: Asks only the critical clarification questions needed to proceed safely.
+- `edge_case`: Names the conflict, proposes a safe interpretation, and does not fabricate missing facts.

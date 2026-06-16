@@ -4,6 +4,8 @@
 
     let file: File | null = null;
     let result: UploadResponse | null = null;
+    let errorMessage = "";
+    let isUploading = false;
 
     function handleFileChange(e: Event) {
         const target = e.target as HTMLInputElement | null;
@@ -16,17 +18,29 @@
 
     async function upload() {
         if (!file) {
-            alert("Choose a file first");
+            errorMessage = "Choose a file first";
             return;
         }
-        result = await apiUpload(file);
+        errorMessage = "";
+        isUploading = true;
+        try {
+            result = await apiUpload(file);
+        } catch (err) {
+            errorMessage = err instanceof Error ? err.message : "Upload failed";
+        } finally {
+            isUploading = false;
+        }
     }
 </script>
 
 <h1>Upload Research Document</h1>
 
 <input type="file" onchange={handleFileChange} />
-<button onclick={upload}>Upload</button>
+<button onclick={upload} disabled={isUploading}>{isUploading ? "Uploading..." : "Upload"}</button>
+
+{#if errorMessage}
+    <p style="color: #b91c1c;">{errorMessage}</p>
+{/if}
 
 {#if result}
     <p>Uploaded: {result.title}</p>

@@ -78,37 +78,44 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_document(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    Uploads a PDF or DOCX → extracts text → stores DB record.
+    Upload a PDF or Word document, extract text, and store a DB record.
+
+    The backend is normally started from the repository root as:
+        python -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8009
+
+    Browser-uploaded Office files do not always provide a reliable MIME type,
+    especially after GitHub/download/repackaging. Validate primarily by file
+    extension and then let the extractor raise a clear error if the document is
+    malformed.
     """
-    if file.content_type not in {
-        "application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/msword",
-    }:
+    original_name = file.filename or "uploaded_file"
+    suffix = Path(original_name).suffix.lower()
+
+    allowed_suffixes = {".pdf", ".docx", ".doc"}
+    if suffix not in allowed_suffixes:
         raise HTTPException(
-            status_code=400, detail="Only PDF or Word documents are supported."
+            status_code=400,
+            detail="Only PDF or Word documents are supported for research upload. Use .pdf, .docx, or .doc.",
         )
 
-    # Determine safe filename
-    original_name = file.filename or "uploaded_file"
-    suffix = Path(original_name).suffix or ".bin"
-
-    # Save to disk
     file_path = UPLOAD_DIR / f"{datetime.utcnow().timestamp()}{suffix}"
-    with file_path.open("wb") as f:
-        f.write(await file.read())
+    try:
+        with file_path.open("wb") as f:
+            f.write(await file.read())
 
-    # Extract text
-    if suffix.lower() == ".pdf":
-        title, text = extract_text_from_pdf(file_path)
-    else:
-        title, text = extract_text_from_docx(file_path)
+        if suffix == ".pdf":
+            title, text = extract_text_from_pdf(file_path)
+        else:
+            title, text = extract_text_from_docx(file_path)
+    except Exception as exc:
+        if file_path.exists():
+            file_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=f"Could not read uploaded document: {exc}")
 
-    # Persist to DB
     doc = Document(
         filename=original_name,
-        title=title,
-        content=text,
+        title=title or original_name,
+        content=text or "",
     )
     db.add(doc)
     db.commit()
