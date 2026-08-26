@@ -1,11 +1,22 @@
----
-
 # Research Assistant & Prompt Engineering Platform
 
-A full-stack research productivity platform that combines **document analysis**, **prompt engineering**, and **LLM orchestration** into a single, modular workflow.
-Designed for researchers, engineers, and technical teams who work with academic papers, structured prompts, and AI-assisted analysis at scale.
+A full-stack research productivity system that combines persistent document workflows, multi-format generation, scholarly discovery, concurrent text-to-speech, and a deterministic prompt-engineering/evaluation subsystem. The strongest hidden engineering is its inspectable prompt scoring, regression-case generation, failure analysis, and persisted job lineage.
 
----
+## Engineering profile
+
+This repository demonstrates:
+
+- SQLAlchemy persistence for source documents and generated jobs
+- PDF/Word ingestion plus TXT, DOCX, LaTeX, and PDF output generation
+- Scholar/SerpAPI research discovery integration
+- ElevenLabs TTS with bounded chunking, async semaphore control, and ffmpeg composition
+- Prompt-pattern catalogue, framework inference/blending, deterministic synthesis, and heuristic scoring
+- Evaluation-suite JSON, scoring rubrics, failure-analysis artifacts, and regression scenarios
+- Provider-backed LLM workflows with persisted prompts/results
+
+## Reliability and scope
+
+The architecture is broad, but automated tests/CI should be expanded before presenting it as high-assurance production infrastructure. CORS should also be tightened for production instead of wildcard origins with credentials.
 
 ## Core Capabilities
 
